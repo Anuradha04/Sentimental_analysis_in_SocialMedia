@@ -14,10 +14,13 @@ from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import LinearSVC
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+import matplotlib.pyplot as plt
+import seaborn as sns
+from wordcloud import WordCloud
 
 # Load dataset and drop rows with missing text
-data = pd.read_csv(r"C:\01_College\SEM 6\Datasets\Tweets.csv").dropna(subset=['text'])
+data = pd.read_csv(r"Tweets.csv").dropna(subset=['text'])
 
 class SentimentAnalyzer:
     def __init__(self):
@@ -164,7 +167,78 @@ class SentimentAnalyzer:
             acc = accuracy_score(y_test, pred)
             results[name] = acc
             print(f"{name} accuracy: {acc:.2f}")
+            
+            # Print classification report
+            print(f"\nClassification Report for {name}:")
+            print(classification_report(y_test, pred, target_names=self.label_encoder.classes_))
+            
+            # Plot confusion matrix
+            self.plot_confusion_matrix(y_test, pred, name)
+            
         return results
+
+    def plot_confusion_matrix(self, y_true, y_pred, model_name):
+        cm = confusion_matrix(y_true, y_pred)
+        plt.figure(figsize=(8, 6))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                    xticklabels=self.label_encoder.classes_,
+                    yticklabels=self.label_encoder.classes_)
+        plt.title(f'Confusion Matrix - {model_name}')
+        plt.ylabel('True Label')
+        plt.xlabel('Predicted Label')
+        plt.show()
+
+    def plot_class_distribution(self, data):
+        sentiment_counts = data['sentiment'].value_counts()
+        plt.figure(figsize=(8, 6))
+        sns.barplot(x=sentiment_counts.index, y=sentiment_counts.values)
+        plt.title('Class Distribution')
+        plt.xlabel('Sentiment')
+        plt.ylabel('Count')
+        plt.show()
+
+    def plot_word_clouds(self, processed_data):
+        # Group texts by sentiment
+        sentiment_groups = {}
+        for item in processed_data:
+            sentiment = item['sentiment']
+            if sentiment not in sentiment_groups:
+                sentiment_groups[sentiment] = []
+            sentiment_groups[sentiment].append(item['text'])
+        
+        # Create word cloud for each sentiment
+        plt.figure(figsize=(15, 10))
+        for i, (sentiment, texts) in enumerate(sentiment_groups.items()):
+            plt.subplot(1, len(sentiment_groups), i+1)
+            wordcloud = WordCloud(width=400, height=300, background_color='white').generate(' '.join(texts))
+            plt.imshow(wordcloud, interpolation='bilinear')
+            plt.title(sentiment)
+            plt.axis('off')
+        plt.tight_layout()
+        plt.show()
+
+    def plot_feature_importance(self, model, model_name):
+        if not hasattr(model, 'coef_'):
+            print(f"Cannot plot feature importance for {model_name}")
+            return
+            
+        # Get feature importance
+        importance = model.coef_
+        class_names = self.label_encoder.classes_
+        
+        # Plot for each class
+        plt.figure(figsize=(15, 5 * len(class_names)))
+        for i, class_name in enumerate(class_names):
+            plt.subplot(len(class_names), 1, i+1)
+            sorted_idx = np.argsort(importance[i])[::-1][:20]  # Top 20 features
+            sorted_importance = importance[i][sorted_idx]
+            sorted_features = [list(self.unigrams.keys())[list(self.unigrams.values()).index(idx)] for idx in sorted_idx]
+            
+            sns.barplot(x=sorted_importance, y=sorted_features)
+            plt.title(f'Top Features for {class_name} - {model_name}')
+            plt.xlabel('Coefficient Value')
+        plt.tight_layout()
+        plt.show()
 
     def show_sample_predictions(self, X_test, y_test, processed_data):
         print("\nSample predictions:")
@@ -184,12 +258,20 @@ class SentimentAnalyzer:
                     print(f"{name} prediction: {pred_label}")
 
     def run(self):
+        # Plot class distribution
+        print("Plotting class distribution...")
+        self.plot_class_distribution(data)
+        
         # Process data
-        print("Preprocessing data...")
+        print("\nPreprocessing data...")
         processed_data = self.process_data(data)
         
+        # Plot word clouds
+        print("\nGenerating word clouds...")
+        self.plot_word_clouds(processed_data)
+        
         # Extract features
-        print("Extracting features...")
+        print("\nExtracting features...")
         X, y = self.extract_features(processed_data)
         
         # Split data
@@ -203,6 +285,10 @@ class SentimentAnalyzer:
         # Evaluate
         print("\nEvaluating models...")
         results = self.evaluate_models(X_test, y_test)
+        
+        # Plot feature importance for logistic regression
+        print("\nPlotting feature importance...")
+        self.plot_feature_importance(self.models['logistic'], 'Logistic Regression')
         
         # Show sample predictions
         self.show_sample_predictions(X_test, y_test, processed_data)
