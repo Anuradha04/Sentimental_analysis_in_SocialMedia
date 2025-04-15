@@ -20,7 +20,7 @@ import seaborn as sns
 from wordcloud import WordCloud
 
 # Load dataset and drop rows with missing text
-data = pd.read_csv(r"C:\01_College\SEM 6\Datasets\Tweets.csv").dropna(subset=['text'])
+data = pd.read_csv(r"Tweets.csv").dropna(subset=['text'])
 
 class SentimentAnalyzer:
     def __init__(self):
